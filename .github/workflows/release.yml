@@ -6,27 +6,7 @@ on:
 permissions:
   contents: write
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    outputs:
-      release_id: ${{ steps.release.outputs.id }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create draft release
-        id: release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          tag_name: ${{ github.ref_name }}
-          name: "Web2App ${{ github.ref_name }}"
-          body: |
-            ## Web2App — Turn any web project into a desktop app
-            Drop your HTML/CSS/JS into `web/`, push, and get desktop builds.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build-desktop:
-    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -54,12 +34,15 @@ jobs:
             librsvg2-dev patchelf
       - run: npm install
       - run: npm run tauri build -- --target ${{ matrix.target }}
-      - name: Upload artifacts
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
           tag_name: ${{ github.ref_name }}
           files: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/**/*
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
