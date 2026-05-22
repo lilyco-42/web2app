@@ -1,0 +1,13 @@
+{
+  "app": {
+    "name": "MyApp",
+    "version": "0.1.0",
+    "identifier": "com.example.myapp"
+  },
+  "window": {
+    "title": "My App",
+    "width": 1280,
+    "height": 800,
+    "resizable": true
+  }
+}
