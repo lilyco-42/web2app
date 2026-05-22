@@ -1,0 +1,7 @@
+{
+  "name": "web2app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "tauri": "tauri" },
+  "dependencies": { "@tauri-apps/cli": "^2.11.2" }
+}
