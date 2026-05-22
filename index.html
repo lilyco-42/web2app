@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web2App — 网页打包桌面应用</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js">
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}
+.header{text-align:center;padding:40px 20px 20px}
+.header h1{font-size:2rem;color:#f0f6fc;margin-bottom:8px}
+.header p{color:#8b949e;font-size:0.95rem}
+.container{max-width:720px;margin:0 auto;padding:0 20px 40px}
+.steps{display:flex;gap:12px;margin-bottom:32px;flex-wrap:wrap}
+.step{flex:1;min-width:100px;text-align:center;padding:16px 12px;background:#161b22;border-radius:8px;border:1px solid #30363d}
+.step .num{display:inline-block;width:28px;height:28px;line-height:28px;border-radius:50%;background:#238636;color:#fff;font-size:0.85rem;font-weight:700;margin-bottom:8px}
+.step .label{font-size:0.85rem;color:#f0f6fc}
+.drop-zone{border:2px dashed #30363d;border-radius:12px;padding:48px 24px;text-align:center;transition:0.2s;cursor:pointer;margin-bottom:24px;background:#161b22}
+.drop-zone.drag-over{border-color:#58a6ff;background:#1c2533}
+.drop-zone .icon{font-size:3rem;margin-bottom:12px}
+.drop-zone .title{font-size:1.1rem;color:#f0f6fc;margin-bottom:4px}
+.drop-zone .hint{font-size:0.85rem;color:#8b949e}
+.drop-zone input{display:none}
+.file-list{background:#161b22;border-radius:8px;margin-bottom:24px;display:none}
+.file-list.show{display:block}
+.file-list-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #30363d;font-size:0.9rem}
+.file-tree{padding:8px 16px;max-height:200px;overflow-y:auto;font-size:0.85rem;color:#8b949e}
+.file-tree .dir{color:#f0f6fc}
+.file-tree .file{padding-left:20px}
+.clear-btn{color:#f85149;cursor:pointer;font-size:0.8rem;background:none;border:none}
+.config{background:#161b22;border-radius:8px;padding:20px;margin-bottom:24px}
+.config h3{font-size:0.95rem;color:#f0f6fc;margin-bottom:16px}
+.row{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.field{flex:1;min-width:140px}
+.field label{display:block;font-size:0.8rem;color:#8b949e;margin-bottom:4px}
+.field input{width:100%;padding:8px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#f0f6fc;font-size:0.9rem;outline:none}
+.field input:focus{border-color:#58a6ff}
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:8px;background:#238636;color:#fff;font-size:1rem;font-weight:600;cursor:pointer;transition:0.2s;margin-bottom:12px}
+.btn:hover{background:#2ea043}
+.btn:disabled{background:#30363d;color:#8b949e;cursor:not-allowed}
+.btn-secondary{background:#21262d;color:#c9d1d9}
+.btn-secondary:hover{background:#30363d}
+.result{display:none;background:#161b22;border-radius:8px;padding:20px;text-align:center}
+.result.show{display:block}
+.result h3{color:#3fb950;margin-bottom:8px}
+.result p{color:#8b949e;font-size:0.9rem;margin-bottom:16px}
+.result code{display:block;background:#0d1117;padding:12px;border-radius:6px;text-align:left;font-size:0.8rem;color:#7ee787;margin-bottom:12px;overflow-x:auto;line-height:1.6}
+footer{text-align:center;padding:20px;color:#484f58;font-size:0.8rem}
+footer a{color:#8b949e}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Web2App</h1>
+  <p>将网页打包成桌面应用 · 零依赖 · 全平台</p>
+</div>
+
+<div class="container">
+  <div class="steps">
+    <div class="step"><div class="num">1</div><div class="label">拖入文件</div></div>
+    <div class="step"><div class="num">2</div><div class="label">配置参数</div></div>
+    <div class="step"><div class="num">3</div><div class="label">下载 ZIP</div></div>
+    <div class="step"><div class="num">4</div><div class="label">推送构建</div></div>
+  </div>
+
+  <div class="drop-zone" id="dropZone">
+    <div class="icon">&#128193;</div>
+    <div class="title">拖入项目文件夹</div>
+    <div class="hint">或点击选择 · HTML/CSS/JS/图片/音频</div>
+    <input type="file" id="fileInput" webkitdirectory multiple>
+  </div>
+
+  <div class="file-list" id="fileList">
+    <div class="file-list-head">
+      <span id="fileCount">0 个文件</span>
+      <button class="clear-btn" id="clearBtn">清除</button>
+    </div>
+    <div class="file-tree" id="fileTree"></div>
+  </div>
+
+  <div class="config">
+    <h3>应用配置</h3>
+    <div class="row">
+      <div class="field"><label>应用名</label><input id="appName" value="MyApp"></div>
+      <div class="field"><label>窗口标题</label><input id="appTitle" value="My App"></div>
+      <div class="field"><label>标识符</label><input id="appId" value="com.example.myapp"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>宽度</label><input id="appWidth" type="number" value="1280"></div>
+      <div class="field"><label>高度</label><input id="appHeight" type="number" value="800"></div>
+    </div>
+  </div>
+
+  <button class="btn" id="packBtn" disabled>选择文件后打包</button>
+
+  <div class="result" id="result">
+    <h3>打包完成！</h3>
+    <p>下载 ZIP 解压后推送 GitHub，自动构建全平台应用</p>
+    <code id="cmdBlock"></code>
+    <button class="btn btn-secondary" id="downloadBtn">下载 web2app-project.zip</button>
+  </div>
+</div>
+
+<footer>Powered by <a href="https://github.com/lilyco-42/web2app">Web2App</a> · Rust + Tauri · 零运行时依赖</footer>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const fileList = document.getElementById('fileList');
+const fileCount = document.getElementById('fileCount');
+const fileTree = document.getElementById('fileTree');
+const clearBtn = document.getElementById('clearBtn');
+const packBtn = document.getElementById('packBtn');
+const result = document.getElementById('result');
+const cmdBlock = document.getElementById('cmdBlock');
+const downloadBtn = document.getElementById('downloadBtn');
+
+let allFiles = [], fileMap = new Map();
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); addFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', () => addFiles(fileInput.files));
+clearBtn.addEventListener('click', () => { allFiles = []; fileMap.clear(); fileInput.value = ''; updateUI(); });
+
+function addFiles(files) {
+  for (const f of files) {
+    const key = f.webkitRelativePath || f.name;
+    if (!fileMap.has(key)) { fileMap.set(key, f); allFiles.push({ path: key, file: f }); }
+  }
+  updateUI();
+}
+
+function updateUI() {
+  const n = allFiles.length;
+  fileCount.textContent = n + ' 个文件';
+  fileList.classList.toggle('show', n > 0);
+  packBtn.disabled = n === 0;
+  packBtn.textContent = n === 0 ? '选择文件后打包' : '打包 ' + n + ' 个文件';
+  const dirs = new Map();
+  for (const {path} of allFiles) {
+    const p = path.replace(/\\/g, '/').split('/');
+    const d = p.length > 1 ? p.slice(0, -1).join('/') : '';
+    if (!dirs.has(d)) dirs.set(d, []);
+    dirs.get(d).push(p[p.length - 1]);
+  }
+  fileTree.innerHTML = [...dirs].sort().map(([d, fs]) =>
+    (d ? '<div class="dir">' + d + '/</div>' : '') +
+    fs.sort().map(f => '<div class="' + (d ? 'file' : '') + '">' + f + '</div>').join('')
+  ).join('') || '<div style="color:#8b949e">空</div>';
+  result.classList.remove('show');
+}
+
+function getTemplate(name) {
+  const templates = {
+    'Cargo.toml': '[package]\nname = "web2app"\nversion = "0.1.0"\nedition = "2021"\n\n[build-dependencies]\ntauri-build = { version = "2", features = [] }\n\n[dependencies]\ntauri = { version = "2", features = [] }\nserde = { version = "1", features = ["derive"] }\nserde_json = "1"\naxum = "0.7"\ntokio = { version = "1", features = ["full"] }\ninclude_dir = "0.7"\nmime_guess = "2"\n',
+    'build.rs': 'fn main() { tauri_build::build() }\n',
+    '.gitignore': 'node_modules/\nsrc-tauri/target/\nsrc-tauri/gen/\n*.exe\n*.msi\n*.dmg\n*.AppImage\n*.deb\n.DS_Store\nThumbs.db\n',
+  };
+  return templates[name] || '';
+}
+
+packBtn.addEventListener('click', async () => {
+  packBtn.disabled = true;
+  packBtn.textContent = '打包中...';
+  const name = document.getElementById('appName').value.trim() || 'MyApp';
+  const title = document.getElementById('appTitle').value.trim() || name;
+  const w = document.getElementById('appWidth').value || '1280';
+  const h = document.getElementById('appHeight').value || '800';
+  const id = document.getElementById('appId').value.trim() || 'com.example.myapp';
+  const root = name + '/';
+  const zip = new JSZip();
+
+  zip.file(root + 'src-tauri/tauri.conf.json', JSON.stringify({
+    productName: name, version: '0.1.0', identifier: id,
+    build: { frontendDist: '../dist', devUrl: 'http://127.0.0.1:4173/', beforeDevCommand: '', beforeBuildCommand: '' },
+    app: { windows: [{ title, width: +w, height: +h, resizable: true, fullscreen: false, url: 'http://127.0.0.1:4173/' }], security: { csp: null } },
+    bundle: { active: true, targets: 'all', icon: ['icons/32x32.png', 'icons/128x128.png', 'icons/128x128@2x.png', 'icons/icon.ico'] }
+  }, null, 2));
+
+  zip.file(root + 'src-tauri/Cargo.toml', getTemplate('Cargo.toml'));
+  zip.file(root + 'src-tauri/build.rs', getTemplate('build.rs'));
+  zip.file(root + '.gitignore', getTemplate('.gitignore'));
+
+  zip.file(root + 'src-tauri/src/main.rs',
+    '#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]\n\n' +
+    'mod server;\n\n' +
+    'use std::net::TcpStream;\nuse std::sync::Arc;\nuse std::time::Duration;\nuse tauri::Manager;\n\n' +
+    'fn main() {\n' +
+    '    tauri::Builder::default()\n' +
+    '        .setup(|app| {\n' +
+    '            if TcpStream::connect_timeout(&"127.0.0.1:4173".parse().unwrap(), Duration::from_millis(100)).is_ok() { return Ok(()); }\n' +
+    '            let rd = app.path().resource_dir().expect("rd");\n' +
+    '            let dd = app.path().app_data_dir().unwrap_or_else(|_| rd.clone());\n' +
+    '            let st = Arc::new(server::AppState { data_dir: dd, resource_dir: rd });\n' +
+    '            let rt = server::router(st);\n' +
+    '            std::thread::spawn(move || {\n' +
+    '                let tk = tokio::runtime::Runtime::new().expect("tk");\n' +
+    '                tk.block_on(async {\n' +
+    '                    let l = tokio::net::TcpListener::bind("127.0.0.1:4173").await.expect("bind");\n' +
+    '                    axum::serve(l, rt).await.expect("srv");\n' +
+    '                });\n' +
+    '            });\n' +
+    '            for _ in 0..30 { std::thread::sleep(Duration::from_millis(300)); if TcpStream::connect_timeout(&"127.0.0.1:4173".parse().unwrap(), Duration::from_millis(200)).is_ok() { break; } }\n' +
+    '            Ok(())\n' +
+    '        })\n' +
+    '        .run(tauri::generate_context!()).expect("run");\n' +
+    '}\n'
+  );
+
+  zip.file(root + 'src-tauri/src/server.rs',
+    'use axum::{body::Body, extract::State, http::{header, StatusCode}, response::Response, Router};\n' +
+    'use include_dir::{include_dir, Dir};\nuse std::path::PathBuf;\nuse std::sync::Arc;\n\n' +
+    'static WEB_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../web");\n\n' +
+    '#[derive(Debug, Clone)]\npub struct AppState { pub data_dir: PathBuf, pub resource_dir: PathBuf }\n\n' +
+    'pub fn router(state: Arc<AppState>) -> Router { Router::new().fallback(serve_any).with_state(state) }\n\n' +
+    'async fn serve_any(State(_): State<Arc<AppState>>, req: axum::http::Request<Body>) -> Response {\n' +
+    '    let p = req.uri().path().trim_start_matches(\'/\');\n' +
+    '    let p = if p.is_empty() { "index.html" } else { p };\n' +
+    '    if let Some(f) = WEB_DIR.get_file(p) {\n' +
+    '        let m = mime_guess::from_path(p).first_or_octet_stream().to_string();\n' +
+    '        return Response::builder().status(StatusCode::OK).header(header::CONTENT_TYPE, m).body(Body::from(f.contents().to_vec())).unwrap();\n' +
+    '    }\n' +
+    '    if let Some(f) = WEB_DIR.get_file("index.html") {\n' +
+    '        return Response::builder().status(StatusCode::OK).header(header::CONTENT_TYPE, "text/html; charset=utf-8").body(Body::from(f.contents().to_vec())).unwrap();\n' +
+    '    }\n' +
+    '    Response::builder().status(StatusCode::NOT_FOUND).body(Body::from("404")).unwrap()\n' +
+    '}\n'
+  );
+
+  zip.file(root + 'package.json', JSON.stringify({ name: name.toLowerCase().replace(/\s+/g,'-'), version:'1.0.0', private:true, scripts:{tauri:'tauri'}, dependencies:{'@tauri-apps/cli':'^2.11.2'} }, null, 2));
+  zip.file(root + 'dist/index.html', '<!doctype html><html><body></body></html>');
+  zip.file(root + 'README.md', '# ' + name + '\n\nBuilt with [Web2App](https://github.com/lilyco-42/web2app).\n\n```bash\nnpm install\nnpm run tauri build\n```\n\nPush with a `v*` tag to trigger CI builds.\n');
+
+  // CI workflow
+  zip.file(root + '.github/workflows/release.yml',
+    'name: Release\non:\n  push:\n    tags: [v*]\n  workflow_dispatch:\npermissions:\n  contents: write\njobs:\n  build:\n    strategy:\n      fail-fast: false\n      matrix:\n        include:\n          - os: windows-latest\n            target: x86_64-pc-windows-msvc\n          - os: macos-latest\n            target: aarch64-apple-darwin\n          - os: ubuntu-latest\n            target: x86_64-unknown-linux-gnu\n    runs-on: ${{ matrix.os }}\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n      - uses: dtolnay/rust-toolchain@stable\n        with:\n          targets: ${{ matrix.target }}\n      - if: matrix.os == ubuntu-latest\n        run: |\n          sudo apt-get update -y\n          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev librsvg2-dev patchelf\n      - run: npm install\n      - run: npm run tauri build -- --target ${{ matrix.target }}\n      - uses: softprops/action-gh-release@v2\n        with:\n          tag_name: ${{ github.ref_name }}\n          files: |\n            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi\n            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe\n            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg\n            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb\n            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage\n        env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n'
+  );
+
+  // Generate icon PNGs via canvas
+  for (const [sz, fn] of [[32,'32x32.png'],[128,'128x128.png'],[256,'128x128@2x.png']]) {
+    const c = document.createElement('canvas'); c.width = c.height = sz;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, sz, sz);
+    g.addColorStop(0, '#446688'); g.addColorStop(1, '#224466');
+    x.fillStyle = g; x.fillRect(0, 0, sz, sz);
+    x.fillStyle = '#fff'; x.font = (sz*0.45) + 'px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText('W', sz/2, sz/2);
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    zip.file(root + 'src-tauri/icons/' + fn, new Uint8Array(await blob.arrayBuffer()));
+  }
+  // ico = copy of 32px png
+  const c32 = document.createElement('canvas'); c32.width = c32.height = 32;
+  const x32 = c32.getContext('2d'); x32.fillStyle = '#446688'; x32.fillRect(0, 0, 32, 32);
+  const b32 = await new Promise(r => c32.toBlob(r, 'image/png'));
+  zip.file(root + 'src-tauri/icons/icon.ico', new Uint8Array(await b32.arrayBuffer()));
+
+  // Add user files
+  for (const {path, file} of allFiles) {
+    let rel = path.replace(/\\/g, '/');
+    const parts = rel.split('/');
+    if (parts.length > 1) rel = parts.slice(1).join('/');
+    zip.file(root + 'web/' + rel, new Uint8Array(await file.arrayBuffer()));
+  }
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  downloadBtn.onclick = () => { const a = document.createElement('a'); a.href = url; a.download = name + '-web2app.zip'; a.click(); };
+  cmdBlock.innerHTML = 'cd ' + name + '<br>git init && git add -A && git commit -m "init"<br>git remote add origin &lt;your-repo-url&gt;<br>git tag v1.0.0 && git push origin v1.0.0';
+  result.classList.add('show');
+  packBtn.disabled = false;
+  packBtn.textContent = '重新打包';
+  result.scrollIntoView({ behavior: 'smooth' });
+});
+</script>
+</body>
+</html>
